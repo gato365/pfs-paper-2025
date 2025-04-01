@@ -1,0 +1,459 @@
+---
+title: "Analysis Of Survey"
+author: "Dr. Immanuel Williams"
+date: "11/3/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+How to join multiple test:
+
+- https://cran.r-project.org/web/packages/arsenal/vignettes/tableby.html
+- https://cran.r-project.org/web/packages/pander/vignettes/knitr.html
+
+```{r load_data, echo=FALSE, message=FALSE, warning=FALSE}
+##~~~~~~~~~~~~~~~~
+## Load Libraries
+##~~~~~~~~~~~~~~~~
+library(tidyverse)
+library(readr)
+library(alluvial)
+library(kableExtra)
+library(schoRsch) ## View table
+library(tadaatoolbox)
+library(gridExtra)
+library(tokenizers)
+
+setwd("C:/Users/james/OneDrive/Documents/Important_Files/paper_0_bball_data/3_survey_data")
+
+survey_df = read.csv('nba_survey.csv')
+argument_df = read.csv('arguments.csv')
+
+```
+
+#### *1. Did opinions change of the GOAT? (do test by class as well)*
+
+```{r question_1_graph, echo=FALSE, message=FALSE,out.height='150px',out.width='200px', warning=FALSE,fig.align='center'}
+## 1. GOAT
+tmp_df = survey_df %>%
+  count(pre_GOAT,post_GOAT) %>%
+  rename(`Sample Size` = n,
+         `Before Survey` = pre_GOAT,
+         `After Survey` = post_GOAT) 
+
+ alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         col = ifelse(tmp_df$`Before Survey`  == "LeBron James" & 
+                        tmp_df$`After Survey`  == "Michael Jordan"
+                        , '#ce1141',
+                      ifelse(tmp_df$`Before Survey`  == "Michael Jordan" & 
+                        tmp_df$`After Survey`  == "LeBron James",'#ffb81c',"gray")
+                      
+                      
+                      ),
+         alpha = 0.7,
+         cw = 0.3
+)
+
+
+
+```
+
+Things to change:
+
+- Add color
+
+```{r question_1_table, echo=FALSE, message=FALSE, warning=FALSE}
+table_q1 = survey_df %>%
+  select(pre_GOAT,post_GOAT) %>%
+  gather(Time,Preference) %>%
+  table() %>%
+  t() 
+
+table_q1 %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+```
+
+
+
+
+
+```{r question_1_analysis, echo=FALSE, message=FALSE, warning=FALSE}
+table_q1 %>%
+  chisq.test()
+```
+
+We were able to see some change in opinion about who is the GOAT but not enough to be statistically significant.
+
+
+
+\newpage
+
+#### *2. Did opinions change about Kobe Change? (do test by class as well)*
+
+```{r question_2, echo=FALSE, message=FALSE,out.height='150px',out.width='200px', warning=FALSE,fig.align='center'}
+## 2. Add Kobe
+tmp_df = survey_df %>%
+  filter(!is.na(pre_add_kobe)) %>%
+  count(pre_add_kobe, post_add_kobe) %>%
+  rename(`Sample Size` = n,
+         `Before Survey` = pre_add_kobe,
+         `After Survey` = post_add_kobe) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         col = ifelse(tmp_df$`Before Survey`  == "Yes" & 
+                        tmp_df$`After Survey`  == "No", '#ff9a5b',
+                      ifelse(tmp_df$`Before Survey`  == "No" & 
+                        tmp_df$`After Survey`  == "Yes",'#552582',"gray")),
+         
+         alpha = 0.7,
+         cw = 0.3
+)
+
+
+
+```
+
+
+
+
+
+```{r question_2_table, echo=FALSE, message=FALSE, warning=FALSE}
+table_q2 = survey_df %>%
+  select(pre_add_kobe, post_add_kobe) %>%
+  gather(Time,Preference) %>%
+  table() %>%
+  t() 
+
+table_q2 %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+```
+
+
+
+```{r question_2_analysis, echo=FALSE, message=FALSE, warning=FALSE}
+table_q2 %>%
+  chisq.test()
+
+
+```
+
+
+We were able to see a change in opinion about whether Kobe should be added to this discussion of who is the GOAT after the activity. We were also able to reject the null hypothesis that there is no relationship between time (pre and post) and opinion about Kobe implying that Plots for Shots had an impact on students opinion on Kobe. Based on the graph it is conclusive that students went from saying yes he should to no he should not be added.
+
+
+\newpage
+
+#### *3. What did the students Gain from the study?*
+
+##### *3a. Analysis Before and After*
+```{r question_3_data_manpulation, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+m_survey_df = survey_df %>%
+  mutate_at(.vars = vars(contains('stat'),contains('dv')),
+            .funs = funs("numeric" = case_when(
+              . =='Strongly Agree'    ~ 2,
+              . =='Agree'             ~ 1,
+              . =='Neutral'           ~ 0,
+              . =='Disagree'          ~ -1,
+              . =='Strongly Disagree' ~ -2
+            )))
+
+## Get Questions in long format
+wide_q_df = m_survey_df %>%
+  select(id,contains('numeric')) 
+
+
+long_q_df = wide_q_df %>%
+  gather(Stat,Score,post_pfs_increase_stat_numeric:pre_understand_dv_numeric)
+
+
+## Pre and post questions long
+pre_post_q_df = long_q_df %>%
+  filter(!str_detect(Stat,'pfs')) %>%
+  mutate(time_survey = str_extract(Stat,pattern = 'post|pre'),
+         adj_of_construct = str_extract(Stat,pattern = 'feelings|understand'),
+         construct = str_extract(Stat,pattern = 'stat|dv'),
+         all_construct = paste0(construct,'_',adj_of_construct))
+
+
+## Pre and post questions Diffence wide
+wide_pre_post_diff_df = wide_q_df %>%
+  select(-contains('pfs')) %>%
+  mutate(diff_stat_feel = post_feelings_stat_numeric - pre_feelings_stat_numeric,
+         diff_dv_feel = post_feelings_dv_numeric - pre_feelings_dv_numeric,
+         diff_stat_understand = post_understand_stat_numeric - pre_understand_stat_numeric,
+         diff_dv_understand = post_understand_dv_numeric - pre_understand_dv_numeric) %>%
+  select(id,contains('diff'))
+
+
+## Pre and post questions Difference long
+long_pre_post_diff_df = wide_pre_post_diff_df %>% 
+  gather(all_construct,Diff_Score,diff_stat_feel:diff_dv_understand)
+
+
+## Only for PFS Increase dv and stat long
+post_q_df = long_q_df %>%
+  filter(str_detect(Stat,'pfs')) %>%
+  mutate(time_survey = str_extract(Stat,pattern = 'post|pre'),
+         construct = str_extract(Stat,pattern = 'stat|dv'))
+
+## Only for PFS Increase dv and stat wide
+post_diff_df = wide_q_df %>%
+  select(id,contains('pfs')) 
+
+
+
+## Find the mean by difference
+mean_pp_diff_df = wide_pre_post_diff_df%>% 
+  select(-id) %>%
+  colMeans(na.rm = T) %>%
+  data.frame() %>%
+  add_rownames('all_construct') %>%
+  mutate(all_construct = case_when(
+      all_construct == 'diff_dv_feel' ~ 'Feelings about Graphics',
+      all_construct == 'diff_stat_feel' ~ 'Feelings about Statistics',
+      all_construct == 'diff_dv_understand' ~ 'Understanding Graphics',
+      all_construct == 'diff_stat_understand' ~ 'Understanding Statistics'))
+colnames(mean_pp_diff_df)[2] = c('Mean_of_Diff')
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r sum_question3_visual_p1, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+# ## Summarize Data raw questions
+# sum_pre_post_df = pre_post_q_df %>%
+#   group_by(all_construct,time_survey) %>%
+#   summarise(mean_c = round(mean(Score,na.rm = T),3),
+#             sd_c = round(sd(Score,na.rm = T),3),
+#             n_c = n(),
+#             two_times_se_c = round(2*(sd_c /sqrt(n_c)),3),
+#             below_mean = round(mean_c - two_times_se_c,3),
+#             above_mean = round(mean_c + two_times_se_c,3)) %>%
+#   ungroup(all_construct) %>%
+#   mutate(time_survey = case_when(
+#     time_survey == 'pre' ~ 'Before',
+#     time_survey == 'post' ~ 'After'),
+#     all_construct = case_when(
+#       all_construct == 'dv_feelings' ~ 'Feelings about Graphics',
+#       all_construct == 'stat_feelings' ~ 'Feelings about Statistics',
+#       all_construct == 'dv_understand' ~ 'Understanding Graphics',
+#       all_construct == 'stat_understand' ~ 'Understanding Statistics'))
+
+## Order Factor  
+# sum_pre_post_df$time_survey = factor(sum_pre_post_df$time_survey, levels = c('Before','After'))
+
+## View Data as Table
+# sum_pre_post_df %>%
+#    kable() %>%
+#    kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+
+
+## View Before and After
+# sum_pre_post_df %>%
+#   select(all_construct,time_survey,mean_c) %>%
+#   spread(time_survey,mean_c) %>%
+#   left_join(mean_pp_diff_df,by = 'all_construct') %>%
+#   arrange(desc(Mean_of_Diff)) %>%
+#    kable() %>%
+#    kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+
+
+# ggplot(sum_pre_post_df,aes(x = time_survey, y = mean_c)) +
+#   geom_line() +
+#   geom_point(color = 'red',size = 3) +
+#   facet_grid(.~all_construct) +
+#   ggtitle('*Constructs*') +
+#   #ylim(0,1.3) +
+#   geom_errorbar(aes(ymin=below_mean,
+#                     ymax=above_mean ), width=.4) +
+#   ylab('Mean of *Construct*') +
+#   xlab('*Time Survey Was Taken*') +
+#   theme_bw() +
+#   theme(plot.title = element_text(hjust = 0.5,size=12,face="bold"),
+#         strip.background =element_rect(fill="white"))
+
+```
+
+
+
+
+
+
+```{r sum_question3_diff_visual_p1, echo=FALSE, message=FALSE, warning=FALSE}
+sum_diff_df = long_pre_post_diff_df  %>%
+  group_by(all_construct) %>%
+  summarise(mean_diff = round(mean(Diff_Score,na.rm = T),3),
+            sd_diff = round(sd(Diff_Score,na.rm = T),3),
+            n_diff = n(),
+            two_times_se_diff = round(2*(sd_diff /sqrt(n_diff)),3),
+            below_mean = round(mean_diff - two_times_se_diff,3),
+            above_mean = round(mean_diff + two_times_se_diff,3)) %>%
+  ungroup(all_construct) %>%
+  mutate(
+    all_construct = case_when(
+      all_construct == 'diff_dv_feel' ~ 'Difference \n Feelings \n Graphic',
+      all_construct == 'diff_stat_feel' ~ 'Difference \n Feelings \n Statistics',
+      all_construct == 'diff_dv_understand' ~ 'Difference \n Understanding \n Graphic',
+      all_construct == 'diff_stat_understand' ~ 'Difference \n Understanding \n Statistics')) %>%
+  arrange(desc(mean_diff))
+  
+  
+sum_diff_df %>%
+  select(mean_diff,sd_diff) %>%
+   kable() %>%
+   kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12) %>%
+  column_spec(1,width = '3cm')
+
+
+p_before_after = ggplot(sum_diff_df,aes(x = all_construct, y = mean_diff)) +
+  geom_line() +
+  geom_point(color = 'red',size = 3) +
+  ggtitle('Measurements of Understanding \n and Feelings (Before & After)') +
+  #ylim(0,1.3) +
+  geom_errorbar(aes(ymin=below_mean,
+                    ymax=above_mean ), width=.4) +
+  ylab('Mean of Differences') +
+  xlab('') +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5,size=10,face="bold"),
+        strip.background =element_rect(fill="white"),
+        axis.text.x = element_text(face="bold", size=9))
+p_before_after
+```
+
+Things to change:
+
+- Change x axis name and order
+- Increase font size
+- Connect points in each graphic
+- Titles with '**' around need to change
+
+\newpage
+
+```{r sum_question3_analysis_p1, echo=FALSE, message=FALSE, warning=FALSE}
+
+tadaa_one_sample(data = wide_pre_post_diff_df, x = diff_dv_feel, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+tadaa_one_sample(data = wide_pre_post_diff_df, x = diff_dv_understand, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+tadaa_one_sample(data = wide_pre_post_diff_df, x = diff_stat_feel, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+tadaa_one_sample(data = wide_pre_post_diff_df, x = diff_stat_understand, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+
+
+```
+
+
+\newpage
+
+##### *3a. Analysis of Increasing Statistics and Graphics*
+
+```{r sum_question3_visual_p2, echo=FALSE, message=FALSE, warning=FALSE}
+sum_post_df = post_q_df   %>%
+  group_by(construct) %>%
+  summarise(mean_c = mean(Score,na.rm = T),
+            sd_c = sd(Score,na.rm = T),
+            n_c = n(),
+            two_times_se_c = 2*(sd_c /sqrt(n_c)),
+            below_mean = mean_c - two_times_se_c,
+            above_mean = mean_c + two_times_se_c) %>%
+  mutate(construct = case_when(
+    construct == 'dv' ~ 'Graphics',
+    construct == 'stat' ~ 'Statistics',
+  ))
+
+# sum_post_df %>%
+# kable() %>%
+# kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+
+p_after = ggplot(sum_post_df,aes(x = construct, y = mean_c)) +
+  geom_line() +
+  geom_point(color = 'red',size = 3) +
+  ggtitle('Measurements of \n Understanding \n and Feelings from PFS') +
+  ylim(0.5,1.3) +
+  geom_errorbar(aes(ymin=below_mean,
+                    ymax=above_mean ), width=.4) +
+  ylab('Mean the Measurement') +
+  xlab('') +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5,size=10,face="bold"),
+        strip.background =element_rect(fill="white"),
+        axis.text.x = element_text(face="bold", size=9))
+
+p_after
+```
+
+
+
+Things to change:
+
+- Titles with '**' around need to change
+
+
+```{r sum_question3_analysis_p2, echo=FALSE, message=FALSE, warning=FALSE}
+
+tadaa_one_sample(data = post_diff_df, x = post_pfs_increase_stat_numeric, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+tadaa_one_sample(data = post_diff_df, x = post_pfs_increase_dv_numeric, mu = 0, print = "markdown",na.rm = T,conf.level = 0.95)
+
+
+
+```
+
+
+
+#### *4. Interested in Sports and/or Follows Basketball*
+```{r sports_bball, echo=FALSE, message=FALSE, warning=FALSE}
+table_bbal_sp  = survey_df  %>%
+  select(pre_sports_preference,pre_follow_basketball) %>%
+  rename(`Interested in Sports` = pre_sports_preference,
+         `Follows Basketball` = pre_follow_basketball) %>%
+  table ()
+
+table_bbal_sp %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12) %>%
+  footnote(number =c("Rows are Interested in Sports ", "Columns are Follows Basketball "))
+```
+
+
+
+
+```{r grid_graphic_1, echo=FALSE, message=FALSE, warning=FALSE}
+
+grid.arrange(p_before_after, p_after, nrow = 1, widths = c(3,1.5))
+```
+
+
+
+
+
+## Analyze Claims
+
+```{r argue_df_manipulation, echo=FALSE, message=FALSE, warning=FALSE}
+lng_argument_df = argument_df %>%
+  select(everything(),Reasoning_1,Reasoning_2,Reasoning_3) %>%
+  gather(Graphic_Number,Reasoning,Reasoning_1:Reasoning_3) %>%
+  mutate(token_words = tokenize_words(Reasoning),
+         length_words = str_count(token_words)) %>%
+  arrange(desc(length_words))
+
+df = lng_argument_df %>%
+  filter(Group.Name =='Stats & The Dope Dogs', str_detect(Graphic_Number,'1|3')) 
+```
+
+

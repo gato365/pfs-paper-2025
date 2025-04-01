@@ -1,0 +1,706 @@
+---
+title: "Data Engineering PFS"
+author: "Dr. Immanuel Williams"
+date: "9/26/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+\newpage
+# MUST THINK ABOout : change from pre to post in postive direction
+# MUST THINK ABOout : Summarize Data 
+# MUST THINK ABOout : run analysis on
+# MUST THINK ABOout : state original questions 
+
+
+\newpage
+
+## Introduction
+
+Data is coming from three sources
+
+1. Pre-Survey
+2. Post-Survey
+3. Activity
+
+
+
+
+```{r load_data, echo=FALSE, message=FALSE, warning=FALSE}
+
+##~~~~~~~~~~~~~~~~
+## Load Libraries
+##~~~~~~~~~~~~~~~~
+library(tidyverse)
+library(readr)
+library(alluvial)
+library(kableExtra)
+setwd("C:/Users/james/OneDrive/Documents/Important_Files/Stat_ed_2018_papers/paper_0_bball_data/3_survey_data")
+
+
+
+argu_df = read_csv('arguments.csv')
+pre_df = read_csv('pre_survey.csv')
+post_df = read_csv('post_survey.csv')
+
+```
+
+
+## Cleaning Data
+### Issues with cleaning Data
+
+0. No Modifications were added to the csv files
+1. Step Change Column Names
+2. Duplicate Ids (7-333,2-222)
+3. Change Ids in which they occurr at different class (5-555)
+
+
+```{r clean_pre_post, echo=FALSE, message=FALSE, warning=FALSE}
+## Change Column Names
+o_pre = colnames(pre_df)
+n_pre = c('pre_date_time','id','pre_sports_preference','pre_follow_basketball','pre_gender','pre_feelings_stat','pre_understand_stat','pre_feelings_dv','pre_understand_dv','pre_GOAT','pre_add_kobe')
+pre_name_df = data.frame(o_pre,n_pre)
+colnames(pre_df) = n_pre
+
+o_post = colnames(post_df)
+n_post = c('post_date_time','id','post_pfs_increase_stat','post_pfs_increase_dv','post_feelings_stat','post_understand_stat','post_feelings_dv','post_understand_dv','post_GOAT','post_add_kobe','post_precep_players','post_comments')
+post_name_df = data.frame(o_post,n_post)
+colnames(post_df) = n_post
+
+## Duplicates
+# pre_dup = c('2-222','5-555','7-333','4-333')
+# post_dup = c('2-222','5-555','7-333')
+
+
+
+## Remove ids because of duplicates
+remove_ids = c('2-222','7-333','4-333')
+
+
+
+## Create Seperate Time and Date Variables
+pre_df = pre_df %>%
+  separate(pre_date_time, c("pre_date", "pre_time"),sep = ' ') %>%
+  mutate(pre_class_name = case_when(
+  str_detect(pre_time,'15:') ~ 'A',
+  str_detect(pre_time,'16') ~ 'B',
+  str_detect(pre_time,'17:') ~ 'C'
+    
+  )) %>%
+  filter(!id %in% remove_ids)
+
+
+
+
+post_df = post_df %>%
+  separate(post_date_time, c("post_date", "post_time"),sep = ' ') %>%
+  mutate(post_class_name = case_when(
+  str_detect(post_time,'15:') ~ 'A',
+  str_detect(post_time,'16') ~ 'B',
+  str_detect(post_time,'17:') ~ 'C'
+    
+  )) %>%
+  filter(!id %in% remove_ids,
+         id !="07/29/99.   217")
+
+
+
+## Duplicate Pre & Post and change name
+
+post_df = post_df %>%
+  mutate(id=replace(id, id=='5-555' &
+                      post_class_name == 'A' ,'5-556'))
+pre_df = pre_df %>%
+  mutate(id=replace(id, id=='5-555' &
+                      pre_class_name == 'A' ,'5-556'))
+
+
+## Obtain only working ids
+working_ids = pre_df$id[(pre_df$id) %in% (post_df$id)]
+
+
+
+post_df = post_df %>%
+  filter(id %in% working_ids)
+
+pre_df = pre_df %>%
+  filter(id %in% working_ids)
+
+## Determine Duplicates
+id_post_df =data.frame(table(post_df$id)) %>%
+  filter(Freq>1)
+id_pre_df =data.frame(table(pre_df$id))%>%
+  filter(Freq>1)
+
+
+```
+
+
+```{r joining_df, echo=FALSE, message=FALSE, warning=FALSE}
+pp_df = post_df %>%
+  inner_join(pre_df, by='id') %>%
+  mutate( pre_sport_bball = case_when(
+    pre_sports_preference == 'Yes'| pre_follow_basketball == 'Yes' ~ 1,
+    TRUE ~ 0
+  ))
+
+write.csv(pp_df,'nba_survey.csv',row.names = FALSE)
+
+```
+
+
+
+## Join Pre Post Survey Data
+### Issues with Joining
+No Issues
+
+
+
+## Summary 
+
+
+```{r sports_bball, echo=FALSE, message=FALSE, warning=FALSE}
+table_bbal_sp  = pp_df %>%
+  select(pre_sports_preference,pre_follow_basketball) %>%
+  rename(`Interested in Sports` = pre_sports_preference,
+         `Follows Basketball` = pre_follow_basketball) %>%
+  table ()
+
+table_bbal_sp %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12) %>%
+  footnote(number =c("Rows are Interested in Sports ", "Columns are Follows Basketball "))
+```
+
+
+\newpage
+
+## Analysis
+
+
+### Main Questions 
+
+1. Did opinions change of the GOAT? (do test by class as well)
+2. Did opinions change about Kobe Change? (do test by class as well)
+3. Did feeling of statistics change? (do test by class as well)
+
+3a. Of those that like BBall or follow sports did PFS change your feelings of statistics?
+
+3b. Of those that do not like BBall or follow sports did PFS change your feelings of statistics?
+
+4. Did understanding of statistics change? (do test by class as well)
+
+4a. Of those that like BBall or follow sports did PFS change your understandings of statistics?
+
+4b. Of those that do not like BBall or follow sports did PFS change your understandings of statistics?
+
+
+
+5. Did feelings of data visualizations change? (do test by class as well)
+
+5a. Of those that like BBall or follow sports did PFS change your feelings of data visualizations?
+
+5b. Of those that do not like BBall or follow sports did PFS change your feelings of data visualizations?
+
+6. Did understanding of data visualizations change? (do test by class as well)
+
+6a. Of those that like BBall or follow sports did PFS change your understandings of data visualizations?
+
+6b. Of those that do not like BBall or follow sports did PFS change your understandings of data visualizations?
+
+
+7. Does gender and Sports have a relationship?
+8. Does gender and follow basketball have a relationship?
+
+
+
+\newpage
+### Questions **NOT** answered graphically
+- Activity change perception about players?
+- Word Selection (Look for statistical words)?
+- How did they defend their answers?
+
+
+\newpage
+
+#### *1. Did opinions change of the GOAT? (do test by class as well)*
+
+```{r question_1_graph, echo=FALSE, message=FALSE, warning=FALSE}
+## 1. GOAT
+tmp_df = pp_df %>%
+  count(pre_GOAT,post_GOAT) %>%
+  rename(`Sample Size` = n) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+
+
+```
+
+
+```{r question_1_table, echo=FALSE, message=FALSE, warning=FALSE}
+table_q1 = pp_df %>%
+  select(pre_GOAT,post_GOAT) %>%
+  gather(Time,Preference) %>%
+  table() %>%
+  t() 
+
+table_q1 %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+```
+
+
+
+
+
+```{r question_1_analysis, echo=FALSE, message=FALSE, warning=FALSE}
+table_q1 %>%
+  chisq.test()
+```
+
+We were able to see some change in opinion about who is the GOAT but not enough to be statistically significant.
+
+
+\newpage
+
+#### *2. Did opinions change about Kobe Change? (do test by class as well)*
+
+```{r question_2, echo=FALSE, message=FALSE, warning=FALSE}
+## 2. Add Kobe
+tmp_df = pp_df %>%
+  filter(!is.na(pre_add_kobe)) %>%
+  count(pre_add_kobe, post_add_kobe) %>%
+  rename(`Sample Size` = n) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+
+
+```
+
+
+
+
+
+```{r question_2_table, echo=FALSE, message=FALSE, warning=FALSE}
+table_q2 = pp_df %>%
+  select(pre_add_kobe, post_add_kobe) %>%
+  gather(Time,Preference) %>%
+  table() %>%
+  t() 
+
+table_q2 %>%
+  kable() %>%
+  kable_styling(position = 'center', full_width = F,bootstrap_options ='bordered',font_size = 12)
+```
+
+
+
+```{r question_2_analysis, echo=FALSE, message=FALSE, warning=FALSE}
+table_q2 %>%
+  chisq.test()
+```
+
+
+We were able to see a change in opinion about whether Kobe should be added to this discussion of who is the GOAT after the activity. We were also able to reject the null hypothesis that there is no relationship between time (pre and post) and opinion about Kobe implying that Plots for Shots had an impact on students opinion on Kobe. Based on the graph it is conclusive that students went from saying yes he should to no he should not be added.
+
+\newpage
+
+#### *3. Did feeling of statistics change? (do test by class as well)*
+
+```{r question_3, echo=FALSE, message=FALSE, warning=FALSE}
+## 3. Feeling about stat
+tmp_df = pp_df %>%
+  count(pre_feelings_stat,post_feelings_stat) %>%
+  rename(`Sample Size` = n) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+
+##### *3a. Of those that like BBall or follow sports did PFS change your feelings of statistics?*
+
+```{r question_3a, echo=FALSE, message=FALSE, warning=FALSE}
+## 3a. Feeling about stat
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 1) %>%
+  count(pre_feelings_stat,post_feelings_stat) %>%
+  rename(`Sample Size` = n) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+\newpage
+
+##### *3b. Of those that do not like BBall or follow sports did PFS change your feelings of statistics?*
+
+
+```{r question_3b, echo=FALSE, message=FALSE, warning=FALSE}
+## 3b. Feeling about stat
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 0) %>%
+  count(pre_feelings_stat,post_feelings_stat) %>%
+  rename(`Sample Size` = n) 
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+
+
+\newpage
+#### *4. Did understanding of statistics change? (do test by class as well)*
+
+```{r question_4, echo=FALSE, message=FALSE, warning=FALSE}
+## 4. Understand Statistics (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(!is.na(post_understand_stat)) %>%
+  count(pre_understand_stat,post_understand_stat) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+
+##### *4a. Of those that like BBall or follow sports did PFS change your understandings of statistics?*
+
+```{r question_4a, echo=FALSE, message=FALSE, warning=FALSE}
+## 4a. Understand Statistics (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(!is.na(post_understand_stat)) %>%
+  filter(pre_sport_bball == 1) %>%
+  count(pre_understand_stat,post_understand_stat) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+\newpage
+
+
+##### *4b. Of those that do not like BBall or follow sports did PFS change your understandings of statistics?*
+
+
+```{r question_4b, echo=FALSE, message=FALSE, warning=FALSE}
+## 4b. Understand Statistics (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(!is.na(post_understand_stat)) %>%
+  filter(pre_sport_bball == 0) %>%
+  count(pre_understand_stat,post_understand_stat) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+
+#### *5. Did feeling of data visualizations change? (do test by class as well)*
+
+```{r question_5, echo=FALSE, message=FALSE, warning=FALSE}
+## 5. Feeling about data visualizations (at least 5 individuals)
+tmp_df = pp_df %>%
+  count(pre_feelings_dv,post_feelings_dv) %>%
+  filter(!is.na(post_feelings_dv)) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+
+##### *5a. Of those that like BBall or follow sports did PFS change your feelings of data visualizations?*
+
+```{r question_5a, echo=FALSE, message=FALSE, warning=FALSE}
+## 5a. Feeling about data visualizations (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 1) %>%
+  count(pre_feelings_dv,post_feelings_dv) %>%
+  filter(!is.na(post_feelings_dv)) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+
+##### *5b. Of those that do not like BBall or follow sports did PFS change your feelings of data visualizations?*
+
+
+
+```{r question_5b, echo=FALSE, message=FALSE, warning=FALSE}
+## 5b. Feeling about data visualizations (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 0) %>%
+  count(pre_feelings_dv,post_feelings_dv) %>%
+  filter(!is.na(post_feelings_dv)) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+#### *6. Did understanding of data visualizations change? (do test by class as well)*
+
+```{r question_6, echo=FALSE, message=FALSE, warning=FALSE}
+
+## 6. Understand Data Visualizatons (at least 5 individuals)
+tmp_df = pp_df %>%
+  count(pre_understand_dv,post_understand_dv) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+##### *6a. Of those that like BBall or follow sports did PFS change your understandings of data visualizations?*
+
+
+```{r question_6a, echo=FALSE, message=FALSE, warning=FALSE}
+
+## 6a. Understand Data Visualizatons (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 1) %>%
+  count(pre_understand_dv,post_understand_dv) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+
+##### *6b. Of those that do not like BBall or follow sports did PFS change your understandings of data visualizations?*
+
+
+```{r question_6b, echo=FALSE, message=FALSE, warning=FALSE}
+
+## 6b. Understand Data Visualizatons (at least 5 individuals)
+tmp_df = pp_df %>%
+  filter(pre_sport_bball == 0) %>%
+  count(pre_understand_dv,post_understand_dv) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+\newpage
+
+#### *7. Does gender and Sports have a relationship?*
+
+```{r question_7, echo=FALSE, message=FALSE, warning=FALSE}
+
+## 7. Gender and Sports
+tmp_df = pp_df %>%
+  count(pre_gender,pre_sports_preference) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+\newpage
+
+#### *8. Does gender and follow basketball have a relationship?*
+
+```{r question_8, echo=FALSE, message=FALSE, warning=FALSE}
+
+## 8. Gender and Sports
+tmp_df = pp_df %>%
+  count(pre_gender,pre_follow_basketball) %>%
+  rename(`Sample Size` = n) %>%
+  filter(`Sample Size` >=5)
+
+alluvial(tmp_df[,c(1,2)], freq=tmp_df$`Sample Size`,
+         cex = 0.9,
+         alpha = 0.7,
+         cw = 0.3
+)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
