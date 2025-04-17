@@ -4,5 +4,6 @@
 .Ruserdata
 
 
-/paper_versions
-/Data/Survey
+paper_versions/
+Data/Survey
+R/analyze_survey_data/
