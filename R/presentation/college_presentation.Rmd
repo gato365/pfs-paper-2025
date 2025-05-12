@@ -1,0 +1,203 @@
+---
+title: "Plots For Shots"
+subtitle: "" ##Saved by the bell curve & The Minty Squids
+author: "Dr. Williams"
+institute: "Cal Poly"
+date: "May 13, 2025"
+output:
+  xaringan::moon_reader:
+    # css: "pfs_css.css"
+    css: xaringan-themer.css
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+<!-- #### **6: Stats & The Cool Catz ** -->
+<!-- #### **7: Saved by the bell curve** -->
+<!-- #### **8: The Minty Squids** -->
+---
+
+```{r xaringan-themer, include = FALSE}
+library(readxl)                ##Read in xlsx files
+library(here)
+library(htmlTable)             ##Display HTML Tables
+library(tidyverse)             ##Data Frame Manipulation
+library(magrittr)              ##Display Table
+library(kableExtra)            ##View Table
+library(xaringanthemer)        ##Font and theme changer
+mono_light(
+  base_color = "#1c5253",
+  header_font_google = google_font("Comic Sans MS"),
+  text_font_google   = google_font("Comic Sans MS"),
+  code_font_google   = google_font("Comic Sans MS")#,
+  # background_image =  "current_logo.png",
+  # background_position = ,
+  # background_size = 
+)
+
+path_file <- here("Data","nba_data.xlsx")
+player_info = read_xlsx(path_file ,sheet = 'nba_player_info')
+
+```
+
+
+class:
+## Who is the G.O.A.T.?
+
+Who is the better player Jordan or James?
+
+Let's do a poll:
+
+
+- Raise your hand for Jordan
+- Raise your hand for James
+
+
+<!-- <div align="center"> -->
+<!-- <img src="mj_lj.png" width=800 height=350> -->
+<!-- </div> -->
+
+```{r echo=FALSE, results='asis'}
+
+
+# Generate the HTML dynamically
+cat(sprintf('<div align="center"><img src="%s" width=800 height=350></div>', here("images", "mj.png")))
+```
+
+
+---
+class:
+## An Even Harder Question...
+Should Kobe Bryant be added to this discussion?
+
+Let's do a poll:
+- Raise your hand if Kobe should be added
+- Raise your hand if Kobe should **NOT** be added
+
+<!-- <div align="center"> -->
+<!-- <img src="kb_image.jpg" width=400 height=350> -->
+<!-- </div> -->
+
+---
+
+
+## Lets Hear It!
+
+--
+
+Raise your hand and let us hear your opinion!!
+
+
+<br />
+<br />
+<br />
+<br />
+
+--
+<font size="15"><span style="font-weight:bold; color:red;">Can you back up your claims with up data???</span></font>
+---
+## Facts
+
+**Valid Points**, but let's look at the data together
+--
+
+```{r accolades, echo=FALSE, message=FALSE, warning=FALSE,results='asis'}
+
+player_info = player_info %>%
+  filter(Info_Name %in% c('Age entered the League',
+                          'Positions',
+                          'Height',
+                          'Weight',
+                          'NBA Finals',
+                          'NBA All-Star Game Selections',
+                          'All-Star MVPs',
+                          'Number of Seasons'))
+
+colnames(player_info)[1]=''
+rownames(player_info) =NULL
+
+print( htmlTable(player_info,css.cell="padding-left: .5em; padding-right:
+                  2em; align: left; align: left; vertical-align: top;",
+                 rnames=FALSE,caption="Source:  www.basketball-reference.com",
+                 align="c",
+                 pos.caption = "bottom"))
+
+```
+--
+
+<span style="font-weight:bold; color:red;">What type
+of information would help compare these players better?</span>
+
+
+---
+
+
+## First Season
+
+
+<font size="15"><span style="font-weight:bold; color:blue;">Let's Explore this R Shiny!</span></font>
+--
+
+
+### Let's explore their 1st season in the NBA in terms of:
+--
+
+- <font size="6">Points (Jitter Plot)</font>
+--
+
+- <font size="6">Assists (Histogram)</font>
+--
+
+- <font size="6">Defensive Rebounds (Box Plot)</font>
+
+--
+
+<font size="15"><span style="font-weight:bold; color:blue;">What else can this R Shiny do?</span></font>
+
+---
+
+## It's not enough...
+
+To only look at the first year.
+
+
+**The BIG Question**: Should Kobe Bryant be added to this discussion?
+
+--
+
+Get in groups of 3 to work to answer this question.
+
+--
+
+
+Go to this website to access the R Shiny:
+<font size="3"> http://shiny.calpoly.sh/NBA_plotsforshots/</font>
+-- 
+
+Select 2-3 different graphics to answer this question. Provide
+two sentences that explain why you choose this graphic and how
+does it answer the question. Come up with a group name to turn in
+answers.
+
+---
+
+## Points Breakdown
+
+```{r game, echo=FALSE, message=FALSE, warning=FALSE,results='asis'}
+data.frame( Visualizations = c('Jitter','Histogram','Boxplot'),
+            Points = c('3 Points','2 Points','1 Point')) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", font_size = 50)
+```
+
+
+---
+
+class: center, middle
+
+# Let's earn some points!
+
+
