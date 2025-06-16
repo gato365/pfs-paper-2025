@@ -1,0 +1,94 @@
+
+---
+title: "Modernized CRD Analysis for Plots For Shots"
+author: "Refactored by ChatGPT"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(here)
+library(janitor)
+library(ggpubr)
+library(rstatix)
+
+# Read data
+pre_df <- read_csv(here("Data", "Survey", "pre_survey.csv")) %>%
+  clean_names()
+
+post_df <- read_csv(here("Data", "Survey", "post_survey.csv")) %>%
+  clean_names()
+
+# Rename columns for clarity
+colnames(pre_df) <- c("pre_date_time", "id", "pre_sports_preference", "pre_follow_basketball", "pre_gender",
+                      "pre_feelings_stat", "pre_understand_stat", "pre_feelings_dv", "pre_understand_dv",
+                      "pre_goat", "pre_add_kobe")
+
+colnames(post_df) <- c("post_date_time", "id", "post_pfs_increase_stat", "post_pfs_increase_dv",
+                       "post_feelings_stat", "post_understand_stat", "post_feelings_dv", "post_understand_dv",
+                       "post_goat", "post_add_kobe", "post_precep_players", "post_comments")
+
+# Filter out bad IDs
+bad_ids <- c("2-222", "7-333", "4-333")
+pre_df <- pre_df %>% filter(!id %in% bad_ids)
+post_df <- post_df %>% filter(!id %in% bad_ids)
+
+# Merge pre and post
+full_df <- inner_join(pre_df, post_df, by = "id")
+```
+
+## Statistical Analysis
+
+### GOAT Opinion Change
+
+```{r goat-opinion}
+goat_table <- table(full_df$pre_goat, full_df$post_goat)
+goat_test <- mcnemar_test(full_df, pre_goat ~ post_goat)
+goat_test
+```
+
+**Interpretation:** If p < 0.05, there is a significant change in GOAT opinions.
+
+---
+
+### Kobe Addition Opinion Change
+
+```{r kobe-opinion}
+kobe_table <- table(full_df$pre_add_kobe, full_df$post_add_kobe)
+kobe_test <- mcnemar_test(full_df, pre_add_kobe ~ post_add_kobe)
+kobe_test
+```
+
+**Interpretation:** If p < 0.05, student views on Kobe shifted due to the activity.
+
+---
+
+### Feelings About Statistics (Ordinal)
+
+```{r feelings-stat}
+wilcox_test(full_df, pre_feelings_stat ~ post_feelings_stat, paired = TRUE)
+```
+
+---
+
+### Understanding of Statistics
+
+```{r understand-stat}
+wilcox_test(full_df, pre_understand_stat ~ post_understand_stat, paired = TRUE)
+```
+
+---
+
+### Feelings About Data Visualizations
+
+```{r feelings-dv}
+wilcox_test(full_df, pre_feelings_dv ~ post_feelings_dv, paired = TRUE)
+```
+
+---
+
+### Understanding of Data Visualizations
+
+```{r understand-dv}
+wilcox_test(full_df, pre_understand_dv ~ post_understand_dv, paired = TRUE)
+```
