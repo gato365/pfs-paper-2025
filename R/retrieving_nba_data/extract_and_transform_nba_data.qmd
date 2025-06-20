@@ -1,0 +1,243 @@
+---
+title: "Extract & Transform Steps"
+author: "Immanuel Williams PhD"
+format: html
+editor: visual
+---
+
+### Load Libraries
+
+```{r}
+library(XML)            ## Data Extraction --- E
+library(httr)           ## Data Extraction --- E
+library(dplyr)          ## Data Transformation --- T
+library(purrr)          ## Data Transformation --- T
+library(stringr)        ## Data Transformation --- T
+library(tidyr)          ## Data Transformation --- T
+library(glue)           ## Data Transformation --- T
+```
+
+## Data Extraction Functions
+
+### Get Player data based on url
+
+```{r}
+get_player_data <- function(url){
+  
+  ## Step 1: Read HTML page
+  webpage <- httr::GET(
+    url,
+    httr::add_headers("User-Agent" = "Mozilla/5.0")
+  ) |> 
+    httr::content(as = "text") |> 
+    rvest::read_html()
+  
+  # Step 2: Extract all HTML tables
+  web_tables <- webpage |> rvest::html_table()
+  
+  ## Step 3: Extract Correct Table (had to search)
+  int_web_table <- web_tables |> purrr::pluck(8)
+}
+```
+
+### Get data from Vector of urls
+
+```{r}
+get_data_web <- function(imp_links, num_years) {
+  map2_dfr(
+    imp_links[1:num_years],
+    1:num_years,
+    ~{
+      tab_df <- get_player_data(.x)
+      tab_df$Season <- str_glue("season_{.y}")
+      cat(str_glue("season_{.y}\n"))
+      tab_df
+    }
+  )
+}
+
+```
+
+## Data Extraction
+
+### Micheal Jordan's Data Extraction
+
+*Description:* This code constructs and processes game log data for Michael Jordan from Basketball Reference using a tidyverse-based approach. It first defines the starting year of Jordan’s career and specifies the total number of potential seasons (19), along with a target of 15 valid seasons. It then excludes the years Jordan did not play—1994, 1999, 2000, and 2001—and keeps the first 15 eligible years from the remaining set. For each of those years, the code constructs a URL pointing to Jordan's game log page and stores them in a data frame.
+
+Next, the function `get_data_web()` is used to retrieve game log data for those 15 seasons. After obtaining the data, the code uses a series of transformations to prepare the dataset for analysis. It adds a new column `Name` with the value "MJ" to identify the player. Then, it creates a new `Game_Location` variable based on the value in the sixth column, indicating whether each game was played at home or away. It extracts the win or loss outcome from the `Result` column using the first character and isolates the final score string (e.g., "109-93"). That score is then split into two numeric columns, `Team_Score` and `Opp_Score`. The original `Result` and sixth column are removed from the dataset for clarity, and a new column `number_game` is created to assign a sequential identifier to each game. This results in a clean, well-labeled data frame of Jordan’s game-level statistics across his first 15 active NBA seasons.
+
+
+```{r}
+# Parameters
+mj_begin_year <- 1985
+num_years_mj <- 19
+num_years <- 15  # Number of valid seasons you want
+
+# Define years to exclude
+mj_years_no_play <- c(1994, 1999, 2000, 2001)
+
+# Create all 19 potential years
+mj_links_df <- tibble(
+  year = mj_begin_year:(mj_begin_year + num_years_mj - 1)
+) %>%
+  filter(!year %in% mj_years_no_play) %>%         # Remove inactive years
+  slice_head(n = num_years) %>%                   # Keep only the first 15 valid seasons
+  mutate(
+    url = glue("https://www.basketball-reference.com/players/j/jordami01/gamelog/{year}/")
+  )
+
+mj_links <- mj_links_df$url
+
+
+
+mj_df = get_data_web(mj_links,num_years) 
+
+mod_1_mj_df <- mj_df %>% 
+  mutate(
+    Name = "MJ",
+    Game_Location = if_else('...6' == "@", "Away", "Home"),
+    Game_Outcome = str_sub(Result, 1, 1),
+    score = str_extract(Result, "\\d{2,3}-\\d{2,3}"),
+  ) %>% 
+  separate(score, into = c("Team_Score", "Opp_Score"), sep = "-", convert = TRUE)  %>%
+  select(-'...6', -Result, -`+/-`) %>%
+  mutate(number_game = row_number())
+```
+
+### Kobe Bryant's Data Extraction
+
+*Description:* This code processes Kobe Bryant’s NBA game log data by first generating URLs for each of his 15 seasons from 1997 onward. Because Basketball Reference changed the structure of its game log tables partway through Kobe’s career, the code separates the data retrieval into two parts. For the first four seasons, the game logs follow an older, consistent format, so each table is retrieved and labeled with a season identifier. For seasons five through fifteen, the tables contain an extra column that must be removed before combining with the earlier data. This structural difference required a separate processing path to ensure consistency, after which both sets were merged into a single, unified data frame.
+
+Once the raw tables were assembled, the dataset was further cleaned and transformed. A `Name` column was added to label the data as Kobe Bryant’s. The code then created a `Game_Location` variable by determining whether each game was played at home or away, extracted the game outcome (“W” or “L”) from the result string, and split the final game score into `Team_Score` and `Opp_Score`. After removing unnecessary columns, a new column was added to index each game in order. The use of two separate workflows to handle the differing table structures was essential to ensure a clean and complete dataset across all 15 seasons.
+
+
+```{r}
+
+# Parameters
+kb_begin_year <- 1997
+num_years <- 15
+
+# Generate all 15 season URLs
+kb_links_df <- tibble(
+  year = kb_begin_year:(kb_begin_year + num_years - 1),
+  season = 1:num_years
+) %>%
+  mutate(
+    url = glue("https://www.basketball-reference.com/players/b/bryanko01/gamelog/{year}/")
+  )
+
+# Get first 4 seasons (old table format)
+kb_data_early <- kb_links_df %>%
+  filter(season <= 4) %>%
+  mutate(data = map2(url, season, ~{
+    df <- get_player_data(.x)
+    df$Season <- str_glue("season_{.y}")
+    df
+  })) %>%
+  pull(data) %>%
+  bind_rows()
+
+# Get remaining 11 seasons (new table format; drop column 30)
+kb_data_late <- kb_links_df %>%
+  filter(season > 4) %>%
+  mutate(data = map2(url, season, ~{
+    df <- get_player_data(.x)
+    df <- df[,-30]
+    df$Season <- str_glue("season_{.y}")
+    df
+  })) %>%
+  pull(data) %>%
+  bind_rows()
+
+# Harmonize and bind both sets
+colnames(kb_data_late) <- colnames(kb_data_early)
+
+kb_df <- bind_rows(kb_data_early, kb_data_late) 
+ 
+
+mod_1_kb_df <- kb_df %>% 
+  mutate(
+    Name = "KB",
+    Game_Location = if_else('...6' == "@", "Away", "Home"),
+    Game_Outcome = str_sub(Result, 1, 1),
+    score = str_extract(Result, "\\d{2,3}-\\d{2,3}"),
+  ) %>% 
+  separate(score, into = c("Team_Score", "Opp_Score"), sep = "-", convert = TRUE)  %>%
+  select(-'...6', -Result, -`+/-`) %>%
+  mutate(number_game = row_number())
+```
+
+### LeBrons James's Data Extraction
+
+*Description:* (Same as MJ)
+
+```{r}
+# Parameters
+lj_begin_year <- 2004
+num_years <- 15
+
+# Create tibble of years and construct URLs with glue
+lj_links_df <- tibble(
+  year = lj_begin_year:(lj_begin_year + num_years - 1)
+) %>%
+  mutate(
+    url = glue("https://www.basketball-reference.com/players/j/jamesle01/gamelog/{year}/")
+  )
+
+# If you want a character vector of just the links
+lj_links <- lj_links_df$url
+
+lj_df = get_data_web(lj_links,num_years) 
+
+
+mod_1_lj_df <- lj_df %>% 
+  mutate(
+    Name = "LJ",
+    Game_Location = if_else('...6' == "@", "Away", "Home"),
+    Game_Outcome = str_sub(Result, 1, 1),
+    score = str_extract(Result, "\\d{2,3}-\\d{2,3}"),
+  ) %>% 
+  separate(score, into = c("Team_Score", "Opp_Score"), sep = "-", convert = TRUE)  %>%
+  select(-'...6', -Result, -`+/-`) %>%
+  mutate(number_game = row_number())
+```
+
+
+### Combine Data Frames Together
+
+*Description*: This code block prepares a cleaned and enriched dataset called `goat_df` by combining and transforming individual game logs for Michael Jordan, Kobe Bryant, and LeBron James.
+
+It begins by binding together the pre-processed data frames for each player. It then filters out rows where the `Rk` column is either the column header repeated or blank, and further excludes games where players did not participate due to statuses such as "Did Not Dress," "Did Not Play," "Not With Team," "Inactive," or "Suspended." After filtering, the code converts all character columns that are not categorical (e.g., `Date`, `Team`, `Opp`, etc.) into numeric form using `parse_number()`.
+
+Next, it creates binary indicator variables to check whether a player achieved double digits (10 or more) in five key stats: points, rebounds, assists, steals, and blocks. These indicators are summed to calculate how many statistical categories a player achieved double digits in during a game. Based on this sum, the code assigns a 1 to the `DD` column if the player had a double-double (in two categories) and a 1 to the `TD` column if the player had a triple-double (in three or more categories). The intermediate "double\_" columns and their sum are then removed, and the final dataset is reordered for clarity. Finally, all column names are cleaned by replacing the percent symbol (`%`) with `_Percent` to ensure compatibility.
+
+
+```{r}
+## Combine all data frames
+goat_df <- bind_rows(mod_1_mj_df,mod_1_kb_df,mod_1_lj_df) %>%
+  filter(!Rk %in% c("Rk", "")) %>% 
+  filter(!GS %in% c("Did Not Dress","Did Not Play","Not With Team","Inactive","Suspended")) %>% 
+  mutate(
+    across(
+      where(is.character) & !any_of(c("Date", "Team", "Opp", "Name", "Game_Location", "Game_Outcome")),
+      ~ parse_number(.x),
+      .names = "{.col}"
+    )
+  ) %>% 
+  mutate(
+         double_PTS = ifelse(PTS >= 10,1,0),
+         double_TRB = ifelse(TRB >= 10,1,0),
+         double_AST = ifelse(AST >= 10,1,0),
+         double_STL = ifelse(STL >= 10,1,0),
+         double_BLK = ifelse(BLK >= 10,1,0)) %>%
+  mutate(sum_d = rowSums(select(., starts_with("double"))),
+         DD = ifelse(sum_d == 2,1,0),
+         TD = ifelse(sum_d >= 3,1,0)) %>%
+  select(-double_PTS,-double_TRB,-double_AST,
+         -double_STL,-double_BLK,-sum_d) %>%
+  select(Name,Season,Game_Location, Game_Outcome,everything()) 
+
+
+colnames(goat_df) = str_replace_all(colnames(goat_df), '%','_Percent')
+
+```

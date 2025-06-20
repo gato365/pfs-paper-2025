@@ -137,7 +137,7 @@ lj_data$Point_Margin = as.numeric(str_remove_all(string = lj_data[,8],"\\(|\\)|W
 ## Remove columns that are not important and add a label for players
 mj_data = mj_data[,-c(6,8)]; mj_data$Name = "MJ"
 kb_data = kb_data[,-c(6,8)];  kb_data$Name = "KB"
-lj_data = lj_data[,-c(6,8,30)] ; lj_data$Name = "LJ"
+lj_data = lj_data[,-c(6,8,30)]; lj_data$Name = "LJ"
 
 
 
